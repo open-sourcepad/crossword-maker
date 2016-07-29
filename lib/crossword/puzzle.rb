@@ -51,24 +51,45 @@ module Crossword
         end
         @horizontal_words_on_grid.push({word: word, cell: start_cell_of_word})
       else
-        all_letters_on_grid_from_horizontal = @horizontal_words_on_grid.join.split('')
-        crossed_letters_from_horizontal = word.split('') & all_letters_on_grid_from_horizontal
-        word_already_used = false
-        crossed_letters_from_horizontal.each do |letter|
-          grid.cells.select{|s| s.letter == letter}.each do |cell|
-            word_already_used = check_vertical cell, word
+        if @horizontal_words_on_grid.size >= @vertical_words_on_grid.size
+          all_letters_on_grid_from_horizontal = @horizontal_words_on_grid.join.split('')
+          crossed_letters_from_horizontal = word.split('') & all_letters_on_grid_from_horizontal
+          word_already_used = false
+          crossed_letters_from_horizontal.each do |letter|
+            grid.cells.select{|s| s.letter == letter}.each do |cell|
+              word_already_used = check_vertical cell, word
+              if word_already_used
+                break
+              end
+            end
             if word_already_used
               break
             end
           end
-          if word_already_used
-            break
-          end
-        end
 
-        if !word_already_used
+          if !word_already_used
+            all_letters_on_grid_from_vertical = @vertical_words_on_grid.join.split('')
+            crossed_letters_from_vertical = word.split('') & all_letters_on_grid_from_vertical
+            crossed_letters_from_vertical.each do |letter|
+              grid.cells.select{|s| s.letter == letter}.each do |cell|
+                word_already_used = check_horizontal cell, word
+                if word_already_used
+                  break
+                end
+              end
+              if word_already_used
+                break
+              end
+            end
+          end
+
+          if !word_already_used
+            @no_connect_words.push word
+          end 
+        else
           all_letters_on_grid_from_vertical = @vertical_words_on_grid.join.split('')
           crossed_letters_from_vertical = word.split('') & all_letters_on_grid_from_vertical
+          word_already_used = false
           crossed_letters_from_vertical.each do |letter|
             grid.cells.select{|s| s.letter == letter}.each do |cell|
               word_already_used = check_horizontal cell, word
@@ -80,11 +101,27 @@ module Crossword
               break
             end
           end
-        end
 
-        if !word_already_used
-          @no_connect_words.push word
-        end 
+          if !word_already_used
+            all_letters_on_grid_from_horizontal = @horizontal_words_on_grid.join.split('')
+            crossed_letters_from_horizontal = word.split('') & all_letters_on_grid_from_horizontal
+            crossed_letters_from_horizontal.each do |letter|
+              grid.cells.select{|s| s.letter == letter}.each do |cell|
+                word_already_used = check_vertical cell, word
+                if word_already_used
+                  break
+                end
+              end
+              if word_already_used
+                break
+              end
+            end
+          end
+
+          if !word_already_used
+            @no_connect_words.push word
+          end 
+        end
       end
     end
 
@@ -188,18 +225,24 @@ module Crossword
       flag = true
       i=0
       initial_x = cell.x
-      while i<word.index(cell.letter) do
+      while i<(word.index(cell.letter)+1) do
         initial_x = initial_x - 1
         flag = validate_word_fit_vertically(initial_x, cell) && validate_word_fit_corners(cell)
+        if !flag
+          break
+        end
         i = i + 1
       end
 
       if flag
         i=0
         initial_x = cell.x
-        while i<(word.length - word.index(cell.letter) - 1) do
+        while i<(word.length - word.index(cell.letter)) do
           initial_x = initial_x + 1
           flag = validate_word_fit_vertically(initial_x, cell) && validate_word_fit_corners(cell)
+          if !flag
+            break
+          end
           i = i + 1
         end
       end
@@ -231,6 +274,9 @@ module Crossword
       while i<(word.index(cell.letter)+1) do
         initial_y = initial_y - 1
         flag = validate_word_fit_horizontally(initial_y, cell) && validate_word_fit_corners(cell)
+        if !flag
+          break
+        end
         i = i + 1
       end
 
@@ -240,11 +286,17 @@ module Crossword
         while i<(word.length - word.index(cell.letter)) do
           initial_y = initial_y + 1
           flag = validate_word_fit_horizontally(initial_y, cell) && validate_word_fit_corners(cell)
+          if !flag
+            break
+          end
           i = i + 1
         end
       end
 
       if flag
+        if word =='iphone'
+          binding.pry
+        end
         start_cell_of_word = nil
         letters_left = word.chars[0..(word.index(cell.letter))]
         letters_left.pop
@@ -273,12 +325,20 @@ module Crossword
     def validate_word_fit_vertically initial_x, cell
       if grid.cells.find {|inner_cell| inner_cell.x==(initial_x)}.nil? || grid.cells.find {|inner_cell| inner_cell.x==(initial_x) && inner_cell.y==cell.y}.letter != '_'
         return false
+      elsif grid.cells.find {|inner_cell| inner_cell.x==(initial_x) && inner_cell.y==(cell.y-1)}.present? && grid.cells.find {|inner_cell| inner_cell.x==(initial_x) && inner_cell.y==(cell.y-1)}.letter != '_'
+        return false
+      elsif grid.cells.find {|inner_cell| inner_cell.x==(initial_x) && inner_cell.y==(cell.y+1)}.present? && grid.cells.find {|inner_cell| inner_cell.x==(initial_x) && inner_cell.y==(cell.y+1)}.letter != '_'
+        return false
       end
       return true
     end
 
     def validate_word_fit_horizontally initial_y, cell
       if grid.cells.find {|inner_cell| inner_cell.y==(initial_y)}.nil? || grid.cells.find {|inner_cell| inner_cell.x==cell.x && inner_cell.y==(initial_y)}.letter != '_'
+        return false
+      elsif grid.cells.find {|inner_cell| inner_cell.x==(cell.x-1) && inner_cell.y==(initial_y)}.present? && grid.cells.find {|inner_cell| inner_cell.x==(cell.x-1) && inner_cell.y==(initial_y)}.letter != '_'
+        return false
+      elsif grid.cells.find {|inner_cell| inner_cell.x==(cell.x+1) && inner_cell.y==(initial_y)}.present? && grid.cells.find {|inner_cell| inner_cell.x==(cell.x+1) && inner_cell.y==(initial_y)}.letter != '_'
         return false
       end
       return true
