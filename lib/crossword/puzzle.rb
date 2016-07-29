@@ -19,6 +19,7 @@ module Crossword
       @no_connect_words.sort_by(&:length).reverse.each do |word|
         insert_anywhere_available word
       end
+      binding.pry
     end
 
     def valid?
@@ -40,11 +41,15 @@ module Crossword
 
     def fill_grid(word, i)
       if i == 0
+        start_cell_of_word = nil
         cells = grid.cells_in_row(grid.height/2 - 1)
         word.chars.each_with_index do |letter, i|
+          if i == 0
+            start_cell_of_word = cells[i]
+          end
           cells[i].letter = letter
         end
-        @horizontal_words_on_grid.push word
+        @horizontal_words_on_grid.push({word: word, cell: start_cell_of_word})
       else
         all_letters_on_grid_from_horizontal = @horizontal_words_on_grid.join.split('')
         crossed_letters_from_horizontal = word.split('') & all_letters_on_grid_from_horizontal
@@ -86,7 +91,7 @@ module Crossword
     def insert_anywhere_available word
       valid = false
       #search by rows
-      (0..9).each do |i|
+      (0..grid.height-1).each do |i|
         start_space = 0
         ctr = 0
         grid.cells_in_row(i).map(&:letter).join.split(/[a-zA-Z]/).map {|x| x.split('')}.each do |space|
@@ -100,10 +105,15 @@ module Crossword
                 ctr = 0
               end
               if valid && ctr == word.length
+                start_cell_of_word = nil
                 cells = grid.cells_in_row(i)
                 word.chars.each_with_index do |letter, index|
+                  if index==0
+                    start_cell_of_word = cells[start_space+index+1]
+                  end
                   cells[start_space+index+1].letter = letter
                 end
+                @horizontal_words_on_grid.push({word: word, cell: start_cell_of_word})
                 break
               elsif !valid
                 start_space = cell.y
@@ -124,7 +134,7 @@ module Crossword
       
       if !valid
         #search by columns
-        (0..9).each do |i|
+        (0..grid.width-1).each do |i|
           start_space = 0
           ctr = 0
           grid.cells_in_column(i).map(&:letter).join.split(/[a-zA-Z]/).map {|x| x.split('')}.each do |space|
@@ -138,10 +148,15 @@ module Crossword
                   ctr = 0
                 end
                 if valid && ctr == word.length
+                  start_cell_of_word = nil
                   cells = grid.cells_in_column(i)
                   word.chars.each_with_index do |letter, index|
+                    if index==0
+                      start_cell_of_word = cells[start_space+index]
+                    end
                     cells[start_space+index].letter = letter
                   end
+                  @vertical_words_on_grid.push({word: word, cell: start_cell_of_word})
                   break
                 elsif !valid
                   start_space = cell.x
@@ -179,26 +194,31 @@ module Crossword
         i = i + 1
       end
 
-      i=0
-      initial_x = cell.x
-      while i<(word.length - word.index(cell.letter) - 1) do
-        initial_x = initial_x + 1
-        flag = validate_word_fit_vertically(initial_x, cell) && validate_word_fit_corners(cell)
-        i = i + 1
+      if flag
+        i=0
+        initial_x = cell.x
+        while i<(word.length - word.index(cell.letter) - 1) do
+          initial_x = initial_x + 1
+          flag = validate_word_fit_vertically(initial_x, cell) && validate_word_fit_corners(cell)
+          i = i + 1
+        end
       end
 
       if flag
+        start_cell_of_word = nil
         letters_above = word.chars[0..(word.index(cell.letter))]
         letters_above.pop
         letters_below = word.chars[(word.index(cell.letter))..word.length-1]
         letters_below.shift
         letters_above.reverse.each_with_index do |c, index|
+          start_cell_of_word = grid.cells.find {|cel| cel.x==cell.x-(index+1) && cel.y==cell.y}
           grid.cells.find {|cel| cel.x==cell.x-(index+1) && cel.y==cell.y}.letter = c
         end
         letters_below.each_with_index do |c, index|
+          start_cell_of_word = grid.cells.find {|cel| cel.x==cell.x+(index) && cel.y==cell.y} if start_cell_of_word.nil?
           grid.cells.find {|cel| cel.x==cell.x+(index+1) && cel.y==cell.y}.letter = c
         end
-        @vertical_words_on_grid.push word
+        @vertical_words_on_grid.push({word: word, cell: start_cell_of_word})
       end
       flag
     end
@@ -207,34 +227,38 @@ module Crossword
       flag = true
       i=0
       initial_y = cell.y
-      while i<word.index(cell.letter) do
+      
+      while i<(word.index(cell.letter)+1) do
         initial_y = initial_y - 1
-        flag = validate_word_fit_horizontally(initial_y, cell)
+        flag = validate_word_fit_horizontally(initial_y, cell) && validate_word_fit_corners(cell)
         i = i + 1
       end
-
-      i=0
-      initial_y = cell.y
-      while i<(word.length - word.index(cell.letter) - 1) do
-        initial_y = initial_y + 1
-        flag = validate_word_fit_horizontally(initial_y, cell)
-        i = i + 1
-      end
-
-      flag = validate_word_fit_corners(cell)
 
       if flag
+        i=0
+        initial_y = cell.y
+        while i<(word.length - word.index(cell.letter)) do
+          initial_y = initial_y + 1
+          flag = validate_word_fit_horizontally(initial_y, cell) && validate_word_fit_corners(cell)
+          i = i + 1
+        end
+      end
+
+      if flag
+        start_cell_of_word = nil
         letters_left = word.chars[0..(word.index(cell.letter))]
         letters_left.pop
         letters_right = word.chars[(word.index(cell.letter))..word.length-1]
         letters_right.shift
         letters_left.reverse.each_with_index do |c, index|
+          start_cell_of_word = grid.cells.find {|cel| cel.y==cell.y-(index+1) && cel.x==cell.x}
           grid.cells.find {|cel| cel.y==cell.y-(index+1) && cel.x==cell.x}.letter = c
         end
         letters_right.each_with_index do |c, index|
+          start_cell_of_word = grid.cells.find {|cel| cel.y==cell.y+(index) && cel.x==cell.x} if start_cell_of_word.nil?
           grid.cells.find {|cel| cel.y==cell.y+(index+1) && cel.x==cell.x}.letter = c
         end
-        @horizontal_words_on_grid.push word
+        @horizontal_words_on_grid.push({word: word, cell: start_cell_of_word})
       end
       flag
     end
