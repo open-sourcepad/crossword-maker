@@ -5,9 +5,9 @@ class API::V1::BaseController < ApplicationController
     render json: @meta.update(status: 406, errors: exception.message), status: :unprocessable_entity
   end
 
-  rescue_from ActiveRecord::RecordNotFound do |exception|
-    render json: @meta.update(status: 404, errors: exception.message), status: :not_found
-  end
+  # rescue_from ActiveRecord::RecordNotFound do |exception|
+  #   render json: @meta.update(status: 404, errors: exception.message), status: :not_found
+  # end
 
   private
 
