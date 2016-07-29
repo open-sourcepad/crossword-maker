@@ -19,7 +19,7 @@ module Crossword
       @no_connect_words.sort_by(&:length).reverse.each do |word|
         insert_anywhere_available word
       end
-      binding.pry
+      # binding.pry
     end
 
     def valid?
